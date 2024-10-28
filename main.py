@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter.filedialog import asksaveasfilename 
 import progress_grid
+import messages_parser
+import merger
 import vk_api as vk
 import json
 import os
@@ -9,11 +12,12 @@ import webbrowser
 import threading
 import time
 from time import perf_counter
+import sqlite_utils
 
-def l10n(string_name: str) -> str:
+def l10n(string_name: str,value="") -> str:
   if os.path.isfile("l10n.json"):
     l10n_dict=json.load(open("l10n.json","r+",encoding="utf-8"))
-    return l10n_dict.get(string_name,string_name)
+    return l10n_dict.get(string_name,string_name).replace("<value>",str(value))
   else:
     return string_name
 
@@ -35,6 +39,8 @@ batch_size_var:tk.Variable
 
 pgrid:progress_grid.ProgressGrid
 
+profiles={}
+
 auth_request="https://oauth.vk.com/authorize?client_id=6121396&scope=69632&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1"
 
 def logger(text: str):
@@ -44,7 +50,7 @@ def logger(text: str):
 
 class Auth:
   api: vk.VkApi.get_api
-  token:str
+  token = ""
   def load(self):
     if os.path.isfile("auth.pickle"):
       self.token=pickle.load(open("auth.pickle","rb"))
@@ -54,6 +60,9 @@ class Auth:
   def save(self):
     pickle.dump(self.token,open("auth.pickle","wb"))
     return True
+  def silent_load(self):
+    self.load()
+    self.api=vk.VkApi(token=self.token).get_api()
   def extract_token_from_url(self,url:  str):
     if not self.load():
       try:
@@ -81,49 +90,73 @@ class Auth:
 
 auth=Auth()
 
+def clampmin(intval,intmin):
+  return intval if intval>intmin else intmin
+
 def process(n,maximum):
   internal_offset=int(batch_size_var.get())*n
   row_id=0
   column_id=n
   perf_start=perf_finish=0
   items=[1]
+  database=sqlite_utils.Database(f"messages-{n}.db")
   current_auth=Auth()
-  current_auth.extract_token_from_url("")
-  time.sleep(1)
+  if auth.token:
+    current_auth.silent_load()
+  else:
+    logger(l10n("auth_first_error"))
+  time.sleep(0.5)
   if current_auth.token:
     #TODO: Add integer checks
     while items:
-      pgrid.update(column_id,row_id,"pending")
+      pgrid.update(column_id,row_id,"pending",int(offset_var.get())+internal_offset)
       #Make sure that that batch is SURELY downloaded
       while True:
         try:
           perf_start = perf_counter()
-          items=current_auth.api.messages.getHistory(peer_id=2000000000+int(chat_id_var.get()),rev=1,count=int(batch_size_var.get()),offset=int(offset_var.get())+internal_offset).get("items",[])
-          #here lies code to process
+          messages=current_auth.api.messages.getHistory(peer_id=2000000000+int(chat_id_var.get()),rev=1,count=int(batch_size_var.get()),extended=1,offset=clampmin(int(offset_var.get())+internal_offset-1,0))
+          items=messages.get("items",[])
+          profiles.update(messages_parser.parse_profiles(messages.get("profiles",[])))
+          messages_parser.set_profiles(profiles)
+          database["messages"].upsert_all(list(map(messages_parser.parse_messages,items)),pk="id")
           perf_finish=perf_counter()
           if (perf_start-perf_finish)<=1:
             time.sleep(1-(perf_start-perf_finish))
           pgrid.update(column_id,row_id,"done")
-          print(internal_offset)
           break
         except Exception as exception:
           pgrid.update(column_id,row_id,"error")
-          print(exception)
+          with open(f"logs\\{time.time()}-{n}.log","w+",encoding="UTF-8") as logFile:
+            logFile.write(str(exception)+"\n")
+            logFile.write(f"offset={int(offset_var.get())+internal_offset}\n")
+            logFile.write(str(list(map(messages_parser.parse_messages,items)))+"\n")
       internal_offset+=int(batch_size_var.get())*(maximum+1)
       if row_id>=15 or pgrid.max_row==int((internal_offset/int(batch_size_var.get()))//10):
         pgrid.ensure_line(row_id+6)
         pgrid.move()
       row_id=int((internal_offset/int(batch_size_var.get()))//10)
       column_id=int((internal_offset/int(batch_size_var.get()))%10)
-processing_thread_0=threading.Thread(target=process,args=(int(0),2))
-processing_thread_1=threading.Thread(target=process,args=(int(1),2))
-processing_thread_2=threading.Thread(target=process,args=(int(2),2))
-def start_processing():
-  pgrid.re_init(200)
-  processing_thread_0.start()
-  processing_thread_1.start()
-  processing_thread_2.start()
+  logger(l10n("thread_work_done",n))
 
+processing_thread_0=threading.Thread(target=process,args=(int(0),2),daemon=True)
+processing_thread_1=threading.Thread(target=process,args=(int(1),2),daemon=True)
+processing_thread_2=threading.Thread(target=process,args=(int(2),2),daemon=True)
+
+def start_processing():
+  global processing_thread_0,processing_thread_1,processing_thread_2
+  if not auth.token:
+    logger(l10n("auth_first_error"))
+    return False
+  if not (processing_thread_0.is_alive() or processing_thread_1.is_alive() or processing_thread_2.is_alive()):
+    processing_thread_0=threading.Thread(target=process,args=(int(0),2),daemon=True)
+    processing_thread_1=threading.Thread(target=process,args=(int(1),2),daemon=True)
+    processing_thread_2=threading.Thread(target=process,args=(int(2),2),daemon=True)
+    pgrid.re_init(200)
+    processing_thread_0.start()
+    processing_thread_1.start()
+    processing_thread_2.start()
+  else:
+    logger(l10n("threads_already_work"))
 class GUI:
   root: tk.Tk
   ui_table: dict
@@ -139,11 +172,14 @@ class GUI:
     global log_var,token_url_var,chat_id_var,offset_var,batch_size_var
     log=[]
     token_url=chat_id=offset=batch_size=""
+    chat_id="7"
+    offset="4399877"
+    batch_size="20"
     log_var=tk.Variable(value=log)
     token_url_var=tk.Variable(value=token_url)
     chat_id_var=tk.Variable(value=chat_id)
-    offset_var=tk.Variable(value=chat_id)
-    batch_size_var=tk.Variable(value=chat_id)
+    offset_var=tk.Variable(value=offset)
+    batch_size_var=tk.Variable(value=batch_size)
   def config_panel_init(self):
     def auth_panel_init(parent):
       panel=tk.PanedWindow(master=parent)
@@ -229,6 +265,11 @@ class GUI:
     panel.grid_rowconfigure(0, weight=1)
     pgrid=progress_grid.ProgressGrid(panel)
 
+  def main_menu_init(self):
+    main_menu = tk.Menu()
+    main_menu.add_command(label="Merge",command=lambda:merger.merge(asksaveasfilename(filetypes = [(f"{l10n("database_file_type")}","*.db")], defaultextension = [(f"{l10n("database_file_type")}","*.db")])))
+    self.root.config(menu=main_menu)
+
   def separator_init(self):
     separator = ttk.Separator(master=self.root, orient="vertical")
     separator.grid(row=0,column=1,sticky="nesw")
@@ -240,6 +281,7 @@ class GUI:
     self.config_panel_init()
     self.separator_init()
     self.progress_panel_init()
+    self.main_menu_init()
     self.root.mainloop()
 
 gui=GUI()

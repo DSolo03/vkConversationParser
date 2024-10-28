@@ -14,7 +14,7 @@ class ProgressGrid():
     for i in range(0,10):
       master.grid_columnconfigure(i,weight=1)
       tree_view=ttk.Treeview(master=master,show='tree',columns=(""),selectmode="none")
-      tree_view.column("#0",width=5)
+      tree_view.column("#0",width=5,anchor="w")
       tree_view.bind("<MouseWheel>",self.noop)
       tree_view.grid(row=0,column=i,sticky="nswe")
       self.tree_views.append(tree_view)
@@ -44,7 +44,7 @@ class ProgressGrid():
       self.tree_views[j].tag_configure("pending",background="yellow")
       self.tree_views[j].tag_configure("done",background="green")
       self.tree_views[j].tag_configure("error",background="red")
-  def update(self,x,y,status):
+  def update(self,x,y,status,text=""):
     self.max_row = y if self.max_row<y else self.max_row
     self.tree_views[x].item(self.tree_views[x].get_children()[y],tag=status)
   def ensure_line(self,i):
