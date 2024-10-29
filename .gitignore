@@ -1,6 +1,6 @@
 auth.pickle
 VkConversationParser.code-workspace
-__pycache__/progress_grid.cpython-312.pyc
+__pycache__/*
 messages-0.db
 messages-1.db
 messages-2.db
@@ -11,3 +11,4 @@ z.db
 __pycache__/merger.cpython-312.pyc
 __pycache__/progress_grid.cpython-312.pyc
 __pycache__/progress_grid.cpython-312.pyc
+logs/*

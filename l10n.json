@@ -1,1 +1,21 @@
-{"root.title":"VK Conversation Parser","thread_work_done":"Ready <value>"}
+{
+    "root.title":"VK Conversation Parser",
+    "thread_work_done":"Готов <value>-й поток",
+    "thread_work_start":"Запущен <value>-й поток",
+    "get_token_button":"Получить токен",
+    "auth_button":"Войти",
+    "chat_id_entry_desc":"ID беседы",
+    "offset_entry_desc":"Смещение",
+    "batch_size_desc":"Размер пакета",
+    "start_button":"Поехали",
+    "token_load_success":"Загружен токен из файла",
+    "token_extract_fail":"Не удалось извлечь токен",
+    "token_valid_success":"Токен подтвержден",
+    "token_invalid_fail":"Неверный токен",
+    "merge_button":"Сохранить",
+    "auth_first_error":"Необходима авторизация",
+    "threads_already_work":"Парсинг уже запущен",
+    "enter_token_error":"Введите ссылку с токеном",
+    "token_save_success":"Токен сохранен в файл",
+    "wrong_inputs_error":"Введены неверные данные"
+}

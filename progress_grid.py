@@ -8,12 +8,13 @@ class ProgressGrid():
   def noop(self,_):
     return "break"
   def __init__(self,master: tk.PanedWindow,count=0):
+    self.max_row=0
     self.master=master
     self.tree_views=[]
     master.grid_rowconfigure(0,weight=1)
     for i in range(0,10):
       master.grid_columnconfigure(i,weight=1)
-      tree_view=ttk.Treeview(master=master,show='tree',columns=(""),selectmode="none")
+      tree_view=ttk.Treeview(master=master,show="tree",columns=(""),selectmode="none")
       tree_view.column("#0",width=5,anchor="w")
       tree_view.bind("<MouseWheel>",self.noop)
       tree_view.grid(row=0,column=i,sticky="nswe")
@@ -44,7 +45,7 @@ class ProgressGrid():
       self.tree_views[j].tag_configure("pending",background="yellow")
       self.tree_views[j].tag_configure("done",background="green")
       self.tree_views[j].tag_configure("error",background="red")
-  def update(self,x,y,status,text=""):
+  def update(self,x,y,status):
     self.max_row = y if self.max_row<y else self.max_row
     self.tree_views[x].item(self.tree_views[x].get_children()[y],tag=status)
   def ensure_line(self,i):

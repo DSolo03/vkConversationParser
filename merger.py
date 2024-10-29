@@ -18,7 +18,6 @@ def merge(filename="messages.db"):
       ex=exx
   con3.commit()
   con3.execute("detach database dbb")
-  print("ef")
   con3.execute("BEGIN")
   for row in con3.execute("SELECT * FROM dbc.sqlite_master WHERE type='table'"):
     try:

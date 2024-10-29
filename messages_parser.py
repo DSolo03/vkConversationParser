@@ -1,16 +1,15 @@
 import attachments_parser
 from datetime import datetime
 profiles={}
-def set_profiles(profiles_dict:dict):
-  global profiles
-  profiles=profiles_dict
 
 def parse_profiles(profiles_list:list):
+  global profiles
   new_profiles_dict={}
   for profile in profiles_list:
     name=f"{profile.get("first_name","")} {profile.get("last_name","")}"
     new_profiles_dict.update({profile.get("id"):name})
-  return new_profiles_dict
+  profiles.update(new_profiles_dict)
+
 def parse_messages(message:dict):
   attachments=attachments_parser.parse_attachments(message.get("attachments",[]))
   match message.get("action",{}).get("type",""):
